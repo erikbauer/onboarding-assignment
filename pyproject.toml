@@ -6,6 +6,9 @@ authors = ["Your Name <you@example.com>"]
 
 [tool.poetry.dependencies]
 python = "^3.8"
+flake8 = "^3.9.2"
+black = "^21.9b0"
+mypy = "^0.910"
 
 [tool.poetry.dev-dependencies]
 pytest = "^5.2"
