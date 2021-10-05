@@ -13,8 +13,21 @@ httpx = "^0.19.0"
 python-dotenv = "^0.19.0"
 
 [tool.poetry.dev-dependencies]
+flake8-black = "^0.2.1"
+flake8-isort = "^4.0.0"
+isort = "^5.8.0"
 pytest = "^5.2"
 
 [build-system]
 requires = ["poetry-core>=1.0.0"]
 build-backend = "poetry.core.masonry.api"
+
+[tool.black]
+line-length = 120
+target_version = ["py38"]
+
+[tool.isort]
+profile = "black"
+line_length = 120
+known_first_party = "service,proto_build"
+skip = "mypy_cache,proto_build"
