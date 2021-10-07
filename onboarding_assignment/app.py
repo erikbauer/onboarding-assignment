@@ -2,13 +2,14 @@ from base64 import b64encode
 import csv
 import httpx
 import os
+import re
 from dotenv import load_dotenv
 from typing import Dict
 
 load_dotenv()
 
-api_user: str = os.getenv("API_USER")
-api_password: str = os.getenv("API_PASSWORD")
+api_user: str = bytes(os.getenv("API_USER"), "utf-8")
+api_password: str = bytes(os.getenv("API_PASSWORD"), "utf-8")
 base_url = "https://sandbox.billogram.com/api/v2"
 
 headers = {"Authorization": b"Basic " + b64encode(api_user + b":" + api_password)}
@@ -98,6 +99,27 @@ class Billogram(RemoteObject):
         super().__init__()
         self.customer = customer
 
+def email_is_valid(email: str) -> bool:
+    regex = r'\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b'
+    if re.fullmatch(regex, email):
+        return True 
+    else:
+        return False
+
+def phone_is_valid(phone_number: str) -> bool:
+    regex = r'\b^0\d{8,10}\b'
+    if re.fullmatch(regex, phone_number):
+        return True
+    else:
+        return False
+
+def check_response(response: Dict) -> Dict:
+    if response.status_code == 200:
+        response_body = response.json()
+        data = response_body["data"]
+        return data
+    else:
+        pass
 
 def create_customer(invoice: Dict) -> Dict:
     # Check if customer already exists
