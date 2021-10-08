@@ -8,122 +8,111 @@ from typing import Dict
 
 load_dotenv()
 
-api_user: str = bytes(os.getenv("API_USER"), "utf-8")
-api_password: str = bytes(os.getenv("API_PASSWORD"), "utf-8")
-base_url = "https://sandbox.billogram.com/api/v2"
+api_user: bytes = bytes(os.getenv("API_USER"), "utf-8")
+api_password: bytes = bytes(os.getenv("API_PASSWORD"), "utf-8")
+base_url: str = "https://sandbox.billogram.com/api/v2"
 
-headers = {"Authorization": b"Basic " + b64encode(api_user + b":" + api_password)}
+headers: Dict = {"Authorization": b"Basic " + b64encode(api_user + b":" + api_password)}
 
 vat = 25
 
+class InvoicingError(Exception):
+    def __init__(self, message: str) -> None:
+        super().__init__(message)
 
-class BillogramAPI:
-    def __init__(self, api_user: str, api_password: str) -> None:
-        self.basic_auth = (api_user, api_password)
-        self.customers = None
-        self.billograms = None
+class ServiceMalfunctioningError(InvoicingError):
+    "The Billogram API service seems to be malfunctioning"
+    pass
 
+class NotAuthorizedError(InvoicingError):
+    "The user does not have authorization to perform the requested operation"
+    pass
 
-class RemoteObject(object):
-    def __init__(self, api: BillogramAPI, url: str, id_field: str) -> None:
-        self._api = api
-        self._url = url
-        self._id_field = id_field
+class InvalidAuthenticationError(InvoicingError):
+    "The user/key combination could not be authenticated"
+    pass
 
+class RequestFormError(InvoicingError):
+    "Errors caused by malformed requests"
+    pass
 
-class Address(object):
-    def __init__(self, street_address: str, zipcode: str, city: str) -> None:
-        self.street_address = street_address
-        self.zipcode = zipcode
-        self.city = city
+class PermissionDeniedError(InvoicingError):
+    "No permission to perform the requested operation"
+    pass
 
-    def get(self):
-        return {
-            "street_address": self.street_address,
-            "zipcode": self.zipcode,
-            "city": self.city,
-        }
-
-
-class Contact(object):
-    def __init__(self, email: str = None, phone: str = None):
-        self.email = email
-        self.phone = phone
-
-    def get(self):
-        return {"email": self.email, "phone": self.phone}
-
-
-class Item(object):
-    def __init__(self, title: str, price: float, vat: int, count: int) -> None:
-        super().__init__()
-        self.title = title
-        self.vat = vat
-        self.price = price
-        self.count = count
-
-    def price_excluding_vat(self):
-        return self.price / (1 + self.vat / 100)
-
-    def get(self):
-        return {"title": self.title, "price": self.price, "vat": self.vat, "count": self.count}
-
-
-class Customer(RemoteObject):
-    def __init__(self, name: str, contact: Contact, address: Address) -> None:
-        super().__init__()
-        self.name = name
-        self.contact = contact
-        self.address = address
-        self.send_method = None
-
-        # Determine send method
-        if self.address.email:
-            self.send_method = "Email"
-        elif self.address.phone:
-            self.send_method = "SMS"
-        else:
-            self.send_method = "Letter"
-
-    def get_body(self):
-        return {
-            "customer_no": self.id_field,
-            "name": self.name,
-            "contact": self.contact.get(),
-            "address": self.address.get(),
-        }
-
-
-class Billogram(RemoteObject):
-    def __init__(self, customer: Customer) -> None:
-        super().__init__()
-        self.customer = customer
+class ObjectNotFoundError(InvoicingError):
+    "No object by the requested ID exists"
+    pass
 
 def email_is_valid(email: str) -> bool:
     regex = r'\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b'
-    if re.fullmatch(regex, email):
-        return True 
-    else:
-        return False
+    return re.fullmatch(regex, email) is not None
 
 def phone_is_valid(phone_number: str) -> bool:
     regex = r'\b^0\d{8,10}\b'
-    if re.fullmatch(regex, phone_number):
-        return True
-    else:
-        return False
+    return re.fullmatch(regex, phone_number) is not None
+    
 
-def check_response(response: Dict) -> Dict:
-    if response.status_code == 200:
-        response_body = response.json()
-        data = response_body["data"]
-        return data
-    else:
-        pass
+def check_response(response: httpx.Response) -> Dict:
+    if not response.status_code == 200:
+        expect_content_type = 'application/json'
+        data = response.json()
+        status = data["status"]
 
-def create_customer(invoice: Dict) -> Dict:
+        if response.status_code in range(500, 600):
+            if response.headers["content-type"] == expect_content_type:
+                raise ServiceMalfunctioningError(
+                    'Billogram API reported a server error: {} - {}'.format(
+                        data.get('status'),
+                        data.get('data').get('message')
+                    )
+                )
+
+            raise ServiceMalfunctioningError(
+                'Billogram API reported a server error'
+            )
+        
+        if not status:
+            raise ServiceMalfunctioningError(
+                "Response data missing status field"
+            )
+        
+        if not "data" in data:
+            raise ServiceMalfunctioningError(
+                "Response data missing data field"
+            )
+        
+        if response.status_code == 403:
+            # bad auth
+            if status == 'PERMISSION_DENIED':
+                raise NotAuthorizedError(
+                    'Not allowed to perform the requested operation'
+                )
+            elif status == 'INVALID_AUTH':
+                raise InvalidAuthenticationError(
+                    'The user/key combination is wrong, check the credentials \
+                     used and possibly generate a new set'
+                )
+            elif status == 'MISSING_AUTH':
+                raise RequestFormError('No authentication data was given')
+            else:
+                raise PermissionDeniedError(
+                    'Permission denied, status={}'.format(
+                        status
+                    )
+                )
+            
+        if response.status_code == 404:
+            #  not found
+            if data.get('status') == 'NOT_AVAILABLE_YET':
+                raise ObjectNotFoundError('Object not available yet')
+            raise ObjectNotFoundError('Object not found')
+    
+    return response.json()["data"]
+
+def create_customer(client: httpx.Client, invoice: Dict) -> Dict:
     # Check if customer already exists
-    response = httpx.get(base_url + "/customer" + "/" + invoice["customer_number"], headers=headers)
+    response = client.get(base_url + "/customer" + "/" + invoice["customer_number"], headers=headers)
 
     if response.status_code == 200:
         response_body = response.json()
