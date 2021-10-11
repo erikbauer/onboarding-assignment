@@ -70,6 +70,14 @@ class InvalidParameterError(InvoicingError):
     "Error caused by invalid parameter in field"
     pass
 
+class InvalidEmail(InvoicingError):
+    "Email is not in a valid format"
+    pass
+
+class InvalidPhoneNumber(InvoicingError):
+    "Phone number is not in a valid format"
+    pass
+
 def email_is_valid(email: str) -> bool:
     regex = r'\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b'
     return re.fullmatch(regex, email) is not None
@@ -111,7 +119,9 @@ def check_response(response: httpx.Response) -> None:
         if response.status_code == 400:
             if status == 'INVALID_PARAMETER':
                 raise InvalidParameterError(
-                    "A field in the request has an invalid value, type or is out of range"
+                    'A field in the request has an invalid value, type or is out of range: {}'.format(
+                        data.get('data').get('message')
+                    )
                 )
 
         if response.status_code == 403:
@@ -141,6 +151,7 @@ def check_response(response: httpx.Response) -> None:
             raise ObjectNotFoundError('Object not found')
 
 def create_contact_field(invoice: InvoiceDict) -> Dict:
+    
     return {"email": invoice["email"], "phone": invoice["phone_number"]}
 
 def create_address_field(invoice: InvoiceDict) -> Dict:
@@ -163,6 +174,8 @@ def create_item_field(invoice: InvoiceDict) -> ItemDict:
     if len(title) > 40:
         item["description"] = title
         item["title"] = title[:37] + "..."
+    else:
+        item["title"] = title
 
     return item
 
@@ -178,6 +191,7 @@ def send_method(invoice: InvoiceDict) -> str:
     return send_method
 
 def create_customer(client: httpx.Client, invoice: InvoiceDict) -> None:
+    """ Creates a customer from an invoice, if it does not already exist """
     # Check if customer already exists
     response = client.get(base_url + "/customer" + "/" + str(invoice["customer_number"]), headers=headers)
 
@@ -207,6 +221,7 @@ def create_customer(client: httpx.Client, invoice: InvoiceDict) -> None:
         raise e
 
 def create_billogram(client: httpx.Client, invoice: InvoiceDict) -> None:
+    """ Creates a billogram from an invoice """
     billogram_body = {
         "invoice_no": invoice["invoice_number"],
         "customer": {"customer_no": invoice["customer_number"]},
