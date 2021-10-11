@@ -1,4 +1,5 @@
 import csv
+import logging
 import os
 import re
 from base64 import b64encode
@@ -176,7 +177,8 @@ def create_address_field(invoice: InvoiceDict) -> Dict:
 
 def create_item_field(invoice: InvoiceDict) -> ItemDict:
     vat = 25
-    item: ItemDict = {"vat": vat, "count": 1}
+    count = 1
+    item: ItemDict = {"vat": vat, "count": count}
 
     # Exclude VAT from article price
     price: float = float(invoice["article_price"]) / (1 + vat / 100)
@@ -223,17 +225,11 @@ def create_customer(client: httpx.Client, invoice: InvoiceDict) -> None:
 
         response = client.post(BASE_URL + "/customer", headers=HEADERS, json=customer_body)
 
-        try:
-            check_response(response)
-        except Exception as e:
-            raise e
+        check_response(response)
 
         response_body = response.json()
         customer = response_body["data"]
-        print("Created customer: " + str(customer["customer_no"]))
-
-    except Exception as e:
-        raise e
+        logging.info("Created customer: " + str(customer["customer_no"]))
 
 
 def create_billogram(client: httpx.Client, invoice: InvoiceDict) -> None:
@@ -250,17 +246,16 @@ def create_billogram(client: httpx.Client, invoice: InvoiceDict) -> None:
 
     response = client.post(BASE_URL + "/billogram", headers=HEADERS, json=billogram_body)
 
-    try:
-        check_response(response)
-    except Exception as e:
-        raise e
+    check_response(response)
 
     response_body = response.json()
     billogram = response_body["data"]
-    print("Billogram created and sent with id: " + billogram["id"])
+    logging.info("Billogram created and sent with id: " + billogram["id"])
 
 
 def main():
+    logging.basicConfig(format='%(levelname)s:%(message)s', level=logging.INFO)
+
     invoices_path = Path("./data/invoices.csv")
 
     with open(invoices_path, newline="") as csvfile:
