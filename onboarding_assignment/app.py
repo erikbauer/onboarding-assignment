@@ -12,15 +12,15 @@ from dotenv import load_dotenv
 load_dotenv()
 api_user_env: Optional[str] = os.getenv("API_USER")
 if api_user_env is not None:
-    api_user: bytes = bytes(api_user_env, "utf-8")
+    API_USER: bytes = bytes(api_user_env, "utf-8")
 
 api_password_env: Optional[str] = os.getenv("API_PASSWORD")
 if api_password_env is not None:
-    api_password: bytes = bytes(api_password_env, "utf-8")
+    API_PASSWORD: bytes = bytes(api_password_env, "utf-8")
 
-base_url: str = "https://sandbox.billogram.com/api/v2"
+BASE_URL: str = "https://sandbox.billogram.com/api/v2"
 
-headers: Dict = {"Authorization": b"Basic " + b64encode(api_user + b":" + api_password)}
+HEADERS: Dict = {"Authorization": b"Basic " + b64encode(API_USER + b":" + API_PASSWORD)}
 
 
 class ItemDict(TypedDict, total=False):
@@ -95,7 +95,7 @@ def email_is_valid(email: str) -> bool:
 
 
 def phone_is_valid(phone_number: str) -> bool:
-    regex = r"\b^0\d{8,10}\b"
+    regex = r"\b0\d{8,10}\b"
     return re.fullmatch(regex, phone_number) is not None
 
 
@@ -208,7 +208,7 @@ def send_method(invoice: InvoiceDict) -> str:
 def create_customer(client: httpx.Client, invoice: InvoiceDict) -> None:
     """Creates a customer from an invoice, if it does not already exist"""
     # Check if customer already exists
-    response = client.get(base_url + "/customer" + "/" + str(invoice["customer_number"]), headers=headers)
+    response = client.get(BASE_URL + "/customer" + "/" + str(invoice["customer_number"]), headers=HEADERS)
 
     try:
         check_response(response)
@@ -221,7 +221,7 @@ def create_customer(client: httpx.Client, invoice: InvoiceDict) -> None:
             "address": create_address_field(invoice),
         }
 
-        response = client.post(base_url + "/customer", headers=headers, json=customer_body)
+        response = client.post(BASE_URL + "/customer", headers=HEADERS, json=customer_body)
 
         try:
             check_response(response)
@@ -248,7 +248,7 @@ def create_billogram(client: httpx.Client, invoice: InvoiceDict) -> None:
         },
     }
 
-    response = client.post(base_url + "/billogram", headers=headers, json=billogram_body)
+    response = client.post(BASE_URL + "/billogram", headers=HEADERS, json=billogram_body)
 
     try:
         check_response(response)
