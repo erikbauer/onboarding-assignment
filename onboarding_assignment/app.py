@@ -185,6 +185,7 @@ def create_item_field(invoice: InvoiceDict) -> ItemDict:
     item["price"] = price
 
     title = invoice["article_name"]
+    # The Billogram API only allows for titles with a max lenght of 40 characters
     # Make sure title is not too long. If it is, shorten it and put the whole name in the description
     if len(title) > 40:
         item["description"] = title
