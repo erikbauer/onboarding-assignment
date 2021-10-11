@@ -1,11 +1,12 @@
-from base64 import b64encode
 import csv
-import httpx
 import os
 import re
+from base64 import b64encode
 from pathlib import Path
-from dotenv import load_dotenv
 from typing import Dict, Optional, TypedDict
+
+import httpx
+from dotenv import load_dotenv
 
 # Load environment variables
 load_dotenv()
